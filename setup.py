@@ -27,7 +27,7 @@ def read(fname):
 
 setup(
     name = "cvsanaly",
-    version = "2.2",
+    version = "2.2.1",
     author = "Chris Lewis",
     author_email = "cflewis@soe.ucsc.edu",
     description = ("A Python library for analyzing source control repositories"),
@@ -36,7 +36,6 @@ setup(
     url = "https://github.com/Lewisham/cvsanaly",
     packages=['pycvsanaly2', 'pycvsanaly2.extensions'],
     long_description=read('README.mdown'),
-    data_files = [('share/man/man1',['help/cvsanaly2.1'])],
     scripts = ["cvsanaly2"],
     classifiers = [
         "Development Status :: 4 - Beta",

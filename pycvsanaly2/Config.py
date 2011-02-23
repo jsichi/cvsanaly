@@ -37,15 +37,16 @@ class Config:
                        'db_database'   : 'cvsanaly',
                        'db_hostname'   : 'localhost',
                        'extensions'    : [],
+                       'hard_order'    : False,
                        # Metrics extension options
                        'metrics_all'   : False,
                        'metrics_noerr' : False,
                        # Threading options
                        'max_threads' : 10,
                        # Regex for matching bug fixes in BugFixMessage
-                       'bug_fix_regexes' : ["defect(es)?", "patch(ing|es)?", "bug(s|fix(es)?)?", 
-                "fix(es|ed)?", "\#\d+", ],
-                       'bug_fix_regexes_case_sensitive' : ["[A-Z]+-\d+",],
+                       'bug_fix_regexes' : ["defect(s)?", "patch(ing|es|ed)?", "bug(s|fix(es)?)?", 
+                "(re)?fix(es|ed|ing|age|\s?up(s)?)?", "debug(ged)?", "\#\d+", "back\s?out", "revert(ing|ed)?"],
+                       'bug_fix_regexes_case_sensitive' : ["[A-Z]+(-|#)\d+", "CVE-\d+-\d+"],
                        }
     
     def __init__ (self):
@@ -116,6 +117,10 @@ class Config:
         except:
             pass
         try:
+            self.hard_order = config.hard_order
+        except:
+            pass
+        try:
             self.metrics_all = config.metrics_all
         except:
             pass
@@ -129,6 +134,10 @@ class Config:
             pass
         try:
             self.bug_fix_regexes = config.bug_fix_regexes
+        except:
+            pass
+        try:
+            self.bug_fix_regexes_case_sensitive = config.bug_fix_regexes_case_sensitive
         except:
             pass
 

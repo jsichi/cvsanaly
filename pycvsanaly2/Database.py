@@ -19,7 +19,7 @@
 
 import datetime
 
-from utils import to_utf8, printdbg
+from utils import to_utf8, printdbg, printerr
 
 class DBRepository:
 
@@ -430,6 +430,8 @@ class SqliteDatabase (Database):
                             "commit_id integer" +
                             ")")
             cursor.execute ("CREATE index files_file_name on files(file_name)")
+            cursor.execute("CREATE index scmlog_date on scmlog(date)")
+            cursor.execute("CREATE index scmlog_repo on scmlog(repository_id)")
             self._create_views (cursor)
         except sqlite3.dbapi2.OperationalError:
             raise TableAlreadyExists
@@ -491,12 +493,12 @@ class MysqlDatabase (Database):
                             "uri varchar(255)," +
                             "name varchar(255)," +
                             "type varchar(30)" + 
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE people (" +
                             "id INT primary key," +
                             "name varchar(255)," +
                             "email varchar(255)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE scmlog (" +
                             "id INT primary key," +
                             "rev mediumtext," +
@@ -508,15 +510,17 @@ class MysqlDatabase (Database):
                             "repository_id INT," +
                             "FOREIGN KEY (committer_id) REFERENCES people(id)," +
                             "FOREIGN KEY (author_id) REFERENCES people(id)," +
-                            "FOREIGN KEY (repository_id) REFERENCES repositories(id)" + 
-                            ") CHARACTER SET=utf8")
+                            "FOREIGN KEY (repository_id) REFERENCES repositories(id)," +
+                            "index(repository_id)," +
+                            "index(date)" +
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE files (" +
                             "id INT primary key," +
                             "file_name varchar(255)," +
                             "repository_id INT," +
                             "INDEX (file_name)," +
                             "FOREIGN KEY (repository_id) REFERENCES repositories(id)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE file_links (" +
                             "id INT primary key," +
                             "parent_id INT," +
@@ -525,11 +529,11 @@ class MysqlDatabase (Database):
                             "FOREIGN KEY (parent_id) REFERENCES files(id)," +
                             "FOREIGN KEY (file_id) REFERENCES files(id)," +
                             "FOREIGN KEY (commit_id) REFERENCES scmlog(id)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE branches (" +
                             "id INT primary key," +
                             "name varchar(255)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE actions (" +
                             "id INT," +
                             "type varchar(1)," +
@@ -540,7 +544,7 @@ class MysqlDatabase (Database):
                             "FOREIGN KEY (commit_id) REFERENCES scmlog(id)," +
                             "FOREIGN KEY (branch_id) REFERENCES branches(id), " +
                             "PRIMARY KEY (id)" + 
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE file_copies (" +
                             "id INT primary key," +
                             "to_id integer," +
@@ -552,18 +556,18 @@ class MysqlDatabase (Database):
                             "FOREIGN KEY (to_id) REFERENCES files(id)," +
                             "FOREIGN KEY (from_commit_id) REFERENCES scmlog(id)," +
                             "FOREIGN KEY (action_id) REFERENCES actions(id)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE tags (" +
                             "id INT primary key," +
                             "name varchar(255)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             cursor.execute ("CREATE TABLE tag_revisions (" +
                             "id INT primary key," +
                             "tag_id integer," +
                             "commit_id integer," +
                             "FOREIGN KEY (tag_id) REFERENCES tags(id)," +
                             "FOREIGN KEY (commit_id) REFERENCES scmlog(id)" +
-                            ") CHARACTER SET=utf8")
+                            ") CHARACTER SET=utf8 ENGINE=MyISAM")
             self._create_views (cursor)
         except _mysql_exceptions.OperationalError, e:
             if e.args[0] == 1050:
@@ -608,6 +612,28 @@ def create_database (driver, database, username = None, password = None, hostnam
         raise e
     
     return db
+
+# Useful DB utility functions
+def execute_statement(statement, parameters, write_cursor, db, error_message, exception=Exception):
+    if isinstance(db, SqliteDatabase):
+        import sqlite3.dbapi2
+        
+        try:
+            write_cursor.execute(statement, parameters)
+        except sqlite3.dbapi2.OperationalError as e:
+            printerr(error_message + ": %s", (e,))
+        except Exception as e:
+            raise exception(e)
+
+    elif isinstance(db, MysqlDatabase):
+        import _mysql_exceptions
+    
+        try:
+            write_cursor.execute(statement, parameters)
+        except _mysql_exceptions.OperationalError as e:
+            printerr(error_message + ": %s", (e,))
+        except Exception as e:
+            raise exception(e)
 
 if __name__ == '__main__':
     db = create_database ('sqlite', '/tmp/foo.db')

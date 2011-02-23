@@ -17,20 +17,14 @@
 # Authors :
 #       Carlos Garcia Campos <carlosgc@gsyc.escet.urjc.es>
 
-import os
-import re
-from subprocess import Popen, PIPE
 from repositoryhandler.backends.watchers import DIFF
 
 from pycvsanaly2.Database import (SqliteDatabase, MysqlDatabase, TableAlreadyExists,
-                                  statement, ICursor)
-from pycvsanaly2.Log import LogReader
+                                  statement, ICursor, execute_statement)
 from pycvsanaly2.Config import Config
 from pycvsanaly2.extensions import Extension, register_extension, ExtensionRunError
 from pycvsanaly2.utils import to_utf8, printerr, printdbg, uri_to_filename
-from pycvsanaly2.FindProgram import find_program
-from pycvsanaly2.Command import Command, CommandError
-from cStringIO import StringIO
+from io import BytesIO
 from Jobs import JobPool, Job
 
 class PatchJob(Job):
@@ -43,7 +37,7 @@ class PatchJob(Job):
         def diff_line (data, io):
             io.write (data)
 
-        io = StringIO ()
+        io = BytesIO ()
         wid = self.repo.add_watch (DIFF, diff_line, io)
         try:
             self.repo.show (self.repo_uri, self.rev)
@@ -54,6 +48,8 @@ class PatchJob(Job):
 
         self.repo.remove_watch (DIFF, wid)
         io.close ()
+        
+        self.data = self.data.strip()
 
         return self.data
 
@@ -114,9 +110,9 @@ class Patches (Extension):
                 cursor.execute ("CREATE TABLE patches (" +
                                 "id INT primary key," +
                                 "commit_id integer," +
-                                "patch LONGTEXT," +
-                                "FOREIGN KEY (commit_id) REFERENCES scmlog(id)" +
-                                ") CHARACTER SET=utf8")
+                                "patch LONGTEXT" +
+                                # "FOREIGN KEY (commit_id) REFERENCES scmlog(id)" +
+                                ") ENGINE=InnoDB, CHARACTER SET=utf8")
             except _mysql_exceptions.OperationalError, e:
                 if e.args[0] == 1050:
                     cursor.close ()
@@ -144,13 +140,14 @@ class Patches (Extension):
         # but in the source, these are referred to as commit IDs.
         # Don't ask me why!
         while finished_job is not None:
-            try:
-                p = DBPatch (None, finished_job.commit_id, finished_job.data)
-                write_cursor.execute (statement (DBPatch.__insert__, self.db.place_holder), \
-                    (p.id, p.commit_id, to_utf8(p.patch).decode("utf-8")))
+            p = DBPatch (None, finished_job.commit_id, finished_job.data)
 
-            except Exception as e:
-                printerr("Couldn't insert, duplicate record?: %s", (e,))
+            execute_statement(statement(DBPatch.__insert__, self.db.place_holder),
+                              (p.id, p.commit_id, to_utf8(p.patch).decode("utf-8")),
+                              write_cursor,
+                              db,
+                              "Couldn't insert, duplicate patch?",
+                              exception=ExtensionRunError)
 
             finished_job = job_pool.get_next_done(0)
 
@@ -211,14 +208,13 @@ class Patches (Extension):
                 job = PatchJob(rev, commit_id)
                 job_pool.push(job)
 
+                i = i + 1
                 if i >= queuesize:
                     printdbg("Queue is now at %d, flushing to database", (i,))
                     job_pool.join()
                     self.__process_finished_jobs(job_pool, write_cursor, db)
                     cnn.commit()
                     i = 0
-                else:
-                    i = i + 1
 
             cnn.commit()
             rs = icursor.fetchmany ()
