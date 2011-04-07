@@ -229,7 +229,7 @@ class CommitsLOC (Extension):
                                 "added int," +
                                 "removed int," +
                                 "FOREIGN KEY (commit_id) REFERENCES scmlog(id)" +
-                                ") CHARACTER SET=utf8")
+                                ") CHARACTER SET=utf8 ENGINE=MyISAM")
             except _mysql_exceptions.OperationalError, e:
                 if e.args[0] == 1050:
                     cursor.close ()
