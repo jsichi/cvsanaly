@@ -462,9 +462,13 @@ class MysqlDatabase (Database):
 
         try:
             if self.password is not None:
-                return MySQLdb.connect (self.hostname, self.username, self.password, self.database, charset = 'utf8')
+                cnn = MySQLdb.connect (self.hostname, self.username, self.password, self.database, charset = 'utf8')
             else:
-                return MySQLdb.connect (self.hostname, self.username, db = self.database, charset = 'utf8')
+                cnn = MySQLdb.connect (self.hostname, self.username, db = self.database, charset = 'utf8')
+            crs = cnn.cursor ()
+            crs.execute ('set session wait_timeout = 600')
+            crs.close ()
+            return cnn
         except _mysql_exceptions.OperationalError, e:
             if e.args[0] == 1049:
                 raise DatabaseNotFound
